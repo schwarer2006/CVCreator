@@ -1,0 +1,5 @@
+# Virtuelle Umgebung
+venv/
+
+# Batch-Dateien
+*.bat
