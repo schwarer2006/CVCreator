@@ -1,14 +1,12 @@
-
 from flask import Flask, render_template, request
-from transformers import pipeline
-import pdfkit
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from io import BytesIO
 
 app = Flask(__name__)
 
-# Modell für Stellenanalyse laden
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-
-# Beispieldaten für den Lebenslauf
+# Beispiel-Lebenslaufdaten
 cv_data = {
     "name": "John Doe",
     "email": "john.doe@example.com",
@@ -17,135 +15,123 @@ cv_data = {
     "skills": ["Python", "AWS", "Docker", "Kubernetes"]
 }
 
-def generate_cover_letter(cv_data, matched_skills, language):
+# Mehrsprachige Anschreiben-Generierung
+def generate_cover_letter(cv_data, language):
     if language == "english":
-        return generate_english_cover_letter(cv_data, matched_skills)
-    elif language == "german":
-        return generate_german_cover_letter(cv_data, matched_skills)
-    elif language == "french":
-        return generate_french_cover_letter(cv_data, matched_skills)
-    elif language == "italian":
-        return generate_italian_cover_letter(cv_data, matched_skills)
-    else:
-        return "Language not supported"
-
-def generate_english_cover_letter(cv_data, matched_skills):
-    return f"""
+        return f"""
 Dear Hiring Manager,
 
-I am writing to express my interest in the {cv_data['job_title']} position at your company. With over {cv_data['experience']}, 
-I have developed a strong expertise in technologies such as {', '.join(cv_data['skills'])}.
-
-Based on the job description for the {cv_data['job_title']} role, I believe my skills in {', '.join(matched_skills)} 
-align well with the requirements outlined by your team. My experience in building scalable systems with {', '.join(matched_skills)} 
-makes me confident in my ability to contribute effectively to your company.
+I am writing to express my interest in the {cv_data['job_title']} position at your company. 
+With over {cv_data['experience']}, I have developed a strong expertise in technologies such as {', '.join(cv_data['skills'])}.
+Based on the job description, I believe my skills align well with your team's needs.
 
 Sincerely,
 {cv_data['name']}
 {cv_data['email']}
-    """
-
-def generate_german_cover_letter(cv_data, matched_skills):
-    return f"""
+        """
+    elif language == "german":
+        return f"""
 Sehr geehrter Herr/Frau,
 
-hiermit bewerbe ich mich auf die Position {cv_data['job_title']} in Ihrem Unternehmen. Mit über {cv_data['experience']} Erfahrung 
-habe ich ein umfassendes Know-how in Technologien wie {', '.join(cv_data['skills'])} erworben.
-
-Basierend auf der Stellenbeschreibung für die Position {cv_data['job_title']} bin ich überzeugt, dass meine Fähigkeiten in {', '.join(matched_skills)} 
-gut zu den Anforderungen Ihres Teams passen. Meine Erfahrung in der Entwicklung skalierbarer Systeme mit {', '.join(matched_skills)} 
-macht mich sicher, dass ich effektiv zu Ihrem Unternehmen beitragen kann.
+ich möchte mein Interesse an der Position {cv_data['job_title']} in Ihrem 
+Unternehmen bekunden. 
+Mit über {cv_data['experience']} Erfahrung habe ich umfassende Kenntnisse
+ in Technologien wie {', '.join(cv_data['skills'])} erworben.
+Aufgrund der Stellenbeschreibung bin ich überzeugt, dass meine Fähigkeiten 
+gut zu den Anforderungen Ihres Teams passen.
 
 Mit freundlichen Grüßen,
 {cv_data['name']}
 {cv_data['email']}
-    """
-
-def generate_french_cover_letter(cv_data, matched_skills):
-    return f"""
+        """
+    elif language == "french":
+        return f"""
 Monsieur/Madame,
 
-Je souhaite exprimer mon intérêt pour le poste de {cv_data['job_title']} dans votre entreprise. Avec plus de {cv_data['experience']}, 
-j'ai développé une expertise solide dans des technologies telles que {', '.join(cv_data['skills'])}.
-
-En me basant sur la description de poste pour le rôle de {cv_data['job_title']}, je crois que mes compétences en {', '.join(matched_skills)} 
-correspondent bien aux exigences de votre équipe. Mon expérience dans le développement de systèmes évolutifs avec {', '.join(matched_skills)} 
-me rend confiant quant à ma capacité à contribuer efficacement à votre entreprise.
+Je souhaite exprimer mon intérêt pour le poste de {cv_data['job_title']} dans votre entreprise. 
+Avec plus de {cv_data['experience']}, j'ai développé une solide expertise dans des technologies telles que {', '.join(cv_data['skills'])}.
+Je pense que mes compétences correspondent bien aux besoins de votre équipe.
 
 Cordialement,
 {cv_data['name']}
 {cv_data['email']}
-    """
-
-def generate_italian_cover_letter(cv_data, matched_skills):
-    return f"""
+        """
+    elif language == "italian":
+        return f"""
 Egregio Signore/Signora,
 
-Scrivo per esprimere il mio interesse per la posizione di {cv_data['job_title']} presso la vostra azienda. Con oltre {cv_data['experience']}, 
-ho sviluppato una solida esperienza in tecnologie come {', '.join(cv_data['skills'])}.
-
-In base alla descrizione del lavoro per il ruolo di {cv_data['job_title']}, credo che le mie competenze in {', '.join(matched_skills)} 
-siano in linea con i requisiti del vostro team. La mia esperienza nella costruzione di sistemi scalabili con {', '.join(matched_skills)} 
-mi rende fiducioso nella mia capacità di contribuire efficacemente alla vostra azienda.
+Desidero esprimere il mio interesse per la posizione di {cv_data['job_title']} presso la vostra azienda. 
+Con oltre {cv_data['experience']}, ho sviluppato una forte competenza in tecnologie come {', '.join(cv_data['skills'])}.
+Credo che le mie competenze siano in linea con le esigenze del vostro team.
 
 Cordiali saluti,
 {cv_data['name']}
 {cv_data['email']}
-    """
+        """
+    else:
+        return "Language not supported"
+
+# Funktion zur Generierung des PDFs mit optimierten Rändern und Zeilenhöhe
+def generate_pdf(cover_letter, cv_data):
+    pdf_buffer = BytesIO()
+    
+    # Setze das Format auf DIN A4
+    c = canvas.Canvas(pdf_buffer, pagesize=A4)
+
+    # Einstellungen für Schriftarten und Abstände
+    c.setFont("Helvetica", 11)
+    line_height = 15  # Zeilenhöhe, leicht vergrößert
+    margin_left = 1 * inch  # Linker Rand auf 1 Zoll gesetzt
+    margin_top = 11 * inch  # Oberer Rand, um Platz für eine zusätzliche Zeile zu schaffen
+    
+    # Titel des Anschreibens
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, margin_top, "Cover Letter")
+    
+    # Text des Anschreibens
+    c.setFont("Helvetica", 11)
+    text_object = c.beginText(margin_left, margin_top - line_height*2)
+    text_object.setLeading(line_height)
+    text_object.textLines(cover_letter)
+    c.drawText(text_object)
+
+    # Abschnitt für den Lebenslauf
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, margin_top - 230, "Curriculum Vitae")
+
+    c.setFont("Helvetica", 11)
+    c.drawString(margin_left, margin_top - 250, f"Name: {cv_data['name']}")
+    c.drawString(margin_left, margin_top - 270, f"Experience: {cv_data['experience']}")
+    c.drawString(margin_left, margin_top - 290, f"Skills: {', '.join(cv_data['skills'])}")
+
+    c.save()
+    
+    pdf_buffer.seek(0)
+    return pdf_buffer
 
 # Route für das Hauptformular
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Route für die Verarbeitung und Anzeige im Browser
+# Route zur Verarbeitung und Generierung des Anschreibens und des PDFs
 @app.route('/submit', methods=['POST'])
 def submit():
-    # Daten von der Benutzeroberfläche abrufen
+    # Daten aus dem Formular abrufen
     job_description = request.form['job_description']
     language = request.form['language']
 
-    # Analysiere, welche Skills relevant sind
-    result = classifier(job_description, candidate_labels=cv_data['skills'])
-    matched_skills = [skill for skill in result['labels'] if skill['score'] > 0.5]
+    # Anschreiben auf Basis der ausgewählten Sprache generieren
+    cover_letter = generate_cover_letter(cv_data, language)
 
-    # Anschreiben generieren
-    cover_letter = generate_cover_letter(cv_data, matched_skills, language)
+    # PDF generieren
+    pdf_buffer = generate_pdf(cover_letter, cv_data)
 
-    # Erzeuge ein HTML-Dokument zur Vorschau im Browser
-    html = f"""
-    <html>
-    <head></head>
-    <body>
-        <h1>Cover Letter</h1>
-        <p>{cover_letter.replace('\n', '<br>')}</p>
-
-        <h2>CV</h2>
-        <p>Name: {cv_data['name']}</p>
-        <p>Experience: {cv_data['experience']}</p>
-        <p>Skills: {', '.join(cv_data['skills'])}</p>
-
-        <!-- Button zum Erstellen des PDFs -->
-        <form action="/generate_pdf" method="POST">
-            <input type="hidden" name="html_content" value="{html}">
-            <input type="submit" value="Download as PDF">
-        </form>
-    </body>
-    </html>
-    """
-
-    return html
-
-# Route zur PDF-Generierung
-@app.route('/generate_pdf', methods=['POST'])
-def generate_pdf():
-    # HTML-Inhalt aus dem Formular abrufen
-    html_content = request.form['html_content']
-
-    # PDF erstellen
-    pdfkit.from_string(html_content, 'output.pdf')
-
-    return "PDF erfolgreich erstellt! Sie können es unter dem Dateinamen 'output.pdf' finden."
+    # Rückgabe des PDFs als Antwort
+    return (pdf_buffer, 200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="output.pdf"'
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
